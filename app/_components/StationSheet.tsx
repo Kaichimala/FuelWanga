@@ -5,7 +5,15 @@ import type { Station, Status } from "@/lib/types";
 import { ago, etaText } from "@/lib/fuel";
 import StatusPill from "./StatusPill";
 
-function FuelBox({ label, status, eta }: { label: string; status: Status; eta: number | null }) {
+function FuelBox({
+  label,
+  status,
+  eta,
+}: {
+  label: string;
+  status: Status;
+  eta: string | null;
+}) {
   return (
     <div className="mt-3 rounded-xl border border-line p-3.5">
       <div className="flex items-center justify-between gap-2">
@@ -69,10 +77,11 @@ export default function StationSheet({
         <div className="text-[.9rem] text-muted">
           {s.brand} in {s.area}, {s.city}
         </div>
-        <FuelBox label="Petrol" status={s.petrol} eta={s.eta} />
-        <FuelBox label="Diesel" status={s.diesel} eta={s.eta != null ? s.eta + 1 : null} />
+        {/* Each fuel type uses its own independent ETA column */}
+        <FuelBox label="Petrol" status={s.petrol} eta={s.petrol_eta} />
+        <FuelBox label="Diesel" status={s.diesel} eta={s.diesel_eta} />
         <p className="mt-3.5 text-[.85rem] text-muted">
-          Updated {ago(s.mins)}. Deliveries can change, so call ahead if you are driving far.
+          Updated {ago(s.updated_at)}. Deliveries can change, so call ahead if you are driving far.
         </p>
       </div>
     </div>

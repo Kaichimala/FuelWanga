@@ -1,8 +1,7 @@
 "use client";
 
-import type { Station } from "@/lib/types";
+import type { Station, Status } from "@/lib/types";
 import { cardBorder } from "@/lib/fuel";
-import type { Status } from "@/lib/types";
 import StatusPill from "./StatusPill";
 
 export default function StationCard({
@@ -12,7 +11,7 @@ export default function StationCard({
 }: {
   station: Station;
   overall: Status;
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
 }) {
   return (
     <button

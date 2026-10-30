@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { ALL_LOCATIONS, cities, stations } from "@/lib/stations";
-import { overall, rank, statusWord } from "@/lib/fuel";
-import type { Filters, FuelFilter, StatusFilter } from "@/lib/types";
+import { ALL_LOCATIONS } from "@/lib/malawi";
+import { dbStatusToStatus, overall, rank, statusWord } from "@/lib/fuel";
+import type { Filters, FuelFilter, Station, StationRow, StatusFilter } from "@/lib/types";
 import ChipGroup from "./ChipGroup";
 import StationCard from "./StationCard";
 import StationSheet from "./StationSheet";
@@ -14,14 +14,44 @@ const STATUS_OPTIONS: readonly StatusFilter[] = ["All", "Has fuel", "No fuel"];
 const fieldClass =
   "mt-1 min-h-[44px] w-full rounded-[10px] border border-line bg-bg px-3 py-2.5 text-ink";
 
-export default function FuelFinder() {
+/** Map a DB row to a UI Station, computing the Status enum values. */
+function rowToStation(row: StationRow): Station {
+  return {
+    id: row.id,
+    name: row.name,
+    brand: row.brand,
+    city: row.city,
+    area: row.area,
+    petrol: dbStatusToStatus(row.petrol_status),
+    diesel: dbStatusToStatus(row.diesel_status),
+    petrol_eta: row.petrol_eta,
+    diesel_eta: row.diesel_eta,
+    updated_at: row.updated_at,
+  };
+}
+
+interface Props {
+  /** Server-fetched initial data passed from the Server Component. */
+  initial: StationRow[];
+  /** Unique cities present in the data (derived server-side). */
+  cities: string[];
+  /** Non-null means the initial fetch failed. */
+  fetchError: string | null;
+}
+
+export default function FuelFinder({ initial, cities, fetchError }: Props) {
+  const [stations] = useState<Station[]>(() => initial.map(rowToStation));
+  const [error] = useState<string | null>(fetchError);
+
+  const allCities = [ALL_LOCATIONS, ...cities];
+
   const [filters, setFilters] = useState<Filters>({
     city: ALL_LOCATIONS,
     fuel: "Any",
     status: "All",
     q: "",
   });
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((f) => ({ ...f, [key]: value }));
@@ -36,15 +66,20 @@ export default function FuelFinder() {
         if (filters.status !== "All" && statusWord[o] !== filters.status) return false;
         return true;
       })
-      .sort((a, b) => rank[a.o] - rank[b.o] || a.s.mins - b.s.mins);
-  }, [filters]);
+      .sort(
+        (a, b) =>
+          rank[a.o] - rank[b.o] ||
+          new Date(b.s.updated_at).getTime() - new Date(a.s.updated_at).getTime(),
+      );
+  }, [filters, stations]);
 
   const closeSheet = useCallback(() => setSelectedId(null), []);
-  const selected = selectedId == null ? null : stations[selectedId];
+  const selected = selectedId == null ? null : (stations.find((s) => s.id === selectedId) ?? null);
 
   return (
     <>
       <main className="mx-auto max-w-[860px] px-4 pt-5 pb-16">
+        {/* Malawi flag bar */}
         <div className="flex h-1.5 w-24 overflow-hidden rounded-[3px]" aria-hidden="true">
           <i className="flex-1 bg-[#111]" />
           <i className="flex-1 bg-[#ce1126]" />
@@ -69,7 +104,7 @@ export default function FuelFinder() {
                 value={filters.city}
                 onChange={(e) => set("city", e.target.value)}
               >
-                {cities.map((c) => (
+                {allCities.map((c) => (
                   <option key={c}>{c}</option>
                 ))}
               </select>
@@ -100,27 +135,40 @@ export default function FuelFinder() {
         </section>
 
         <p className="mx-0.5 mt-[18px] mb-2.5 text-[.95rem] text-muted" aria-live="polite">
-          {results.length} {results.length === 1 ? "station" : "stations"} found
-        </p>
-
-        <div className="grid gap-2.5">
-          {results.length ? (
-            results.map(({ s, o }) => (
-              <StationCard key={s.id} station={s} overall={o} onOpen={setSelectedId} />
-            ))
+          {error ? (
+            <span className="text-out">Couldn't load stations. Please try again.</span>
           ) : (
-            <div className="rounded-xl border border-dashed border-line bg-surface p-7 text-center text-muted">
-              <b>No stations match</b>
-              <br />
-              Try another location or clear a filter.
-            </div>
+            `${results.length} ${results.length === 1 ? "station" : "stations"} found`
           )}
-        </div>
-
-        <p className="mt-7 text-[.85rem] text-muted">
-          This preview uses sample data. Real station updates will appear here once they are
-          connected.
         </p>
+
+        {error ? (
+          <div className="rounded-xl border border-dashed border-out bg-outbg p-7 text-center text-out">
+            <b>Couldn't load stations</b>
+            <br />
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-2 underline"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <div className="grid gap-2.5">
+            {results.length ? (
+              results.map(({ s, o }) => (
+                <StationCard key={s.id} station={s} overall={o} onOpen={setSelectedId} />
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-line bg-surface p-7 text-center text-muted">
+                <b>No stations match</b>
+                <br />
+                Try another location or clear a filter.
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       <StationSheet station={selected} onClose={closeSheet} />
